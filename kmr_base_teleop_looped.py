@@ -35,9 +35,10 @@ SPEED_LINEAR = 0.1  # m/s
 SPEED_ANGULAR = 0.3 # rad/s
 
 def getKey():
-    # This function captures key presses without needing 'Enter'
+    # Modified to be non-blocking so the loop keeps running
     tty.setraw(sys.stdin.fileno())
-    rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
+    # Timeout of 0 makes it check instantly and not block
+    rlist, _, _ = select.select([sys.stdin], [], [], 0)
     if rlist:
         key = sys.stdin.read(1)
     else:
@@ -45,29 +46,25 @@ def getKey():
     termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
     return key
 
+counter = 0
+print("Im here")
+
 if __name__=="__main__":
     settings = termios.tcgetattr(sys.stdin)
     
     rospy.init_node('kmr_teleop_keyboard')
     pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
 
-    # Use a ROS Rate to ensure consistent timing (10 Hz is standard/safe)
-    rate = rospy.Rate(10) 
-
     x = 0
     y = 0
     th = 0
     status = 0
 
-    print("Initialising... Holding connection for 20 seconds.")
-    
-    # --- FIX 1: Faster 'Heartbeat' Loop ---
-    # Instead of counting 30 seconds with sleep(1), we count iterations at 10Hz.
-    # 200 iterations * 0.1s = 20 seconds.
-    start_time = rospy.Time.now().to_sec()
-    while (rospy.Time.now().to_sec() - start_time) < 20.0: 
+    # FIX 1: Faster Startup Loop (10Hz)
+    # We loop 200 times with 0.1s sleep = 20 seconds duration
+    while counter <= 200:
         # Buying me 20 seconds to get back to desk. 
-        # Sends zero commands at 10Hz so safety doesn't trigger.
+        # Sends zero commands constantly so safety wont kick me out.
 
         twist = Twist()
         twist.linear.x = 0
@@ -78,15 +75,15 @@ if __name__=="__main__":
         twist.angular.z = 0
 
         pub.publish(twist)
+
+        # print("helo") # Commented out to prevent console spam
         
-        # Removed print to avoid spamming console 10 times a second
-        # print("helo") 
-        
-        rate.sleep() # Sleep for 0.1 seconds (10Hz)
+        counter = counter + 1
+        time.sleep(0.1) # Sleep for 0.1s (10Hz) instead of 1.0s
 
     try:
         print(msg)
-        while not rospy.is_shutdown():
+        while(1):
             key = getKey()
             
             # Identify key press
@@ -102,15 +99,12 @@ if __name__=="__main__":
                 print("STOP")
             elif (key == '\x03'): # CTRL-C
                 break
-            else:
-                # If no key pressed, holding last command or resetting to 0?
-                # Standard teleop logic holds state until changed, or resets on release.
-                # Assuming hold-until-stop behavior based on your snippet, 
-                # but adding a check to avoid stuck keys is safer.
-                if key == '':
-                    pass # Keep sending last command
-                else:
-                    x = 0; y = 0; th = 0
+            elif key != '': 
+                # Only reset if a key WAS pressed but is unknown
+                # If key is empty (no input), we keep the previous command (Toggle Mode)
+                x = 0
+                y = 0
+                th = 0
 
             # Create Twist message
             twist = Twist()
@@ -124,25 +118,25 @@ if __name__=="__main__":
             # Publish the command
             pub.publish(twist)
             
-            # Small sleep to prevent CPU hogging in the main loop
+            # FIX 2: Main Loop Frequency
+            # Sleep 0.1s to maintain 10Hz heartbeat during operation
             time.sleep(0.1)
 
     except Exception as e:
         print(e)
 
     finally:
-        # --- FIX 2: Robust Shutdown Sequence ---
-        # Instead of sending one stop command, we send a burst for 1 second.
-        # This ensures the robot receives the '0' and stops safely before the script dies.
-        print("\nSending Stop Command...")
+        # FIX 3: Robust Shutdown
+        # Send a burst of stop commands to ensure the robot gets it
+        print("\nStopping robot...")
         twist = Twist()
         twist.linear.x = 0; twist.linear.y = 0; twist.linear.z = 0
         twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
         
-        for i in range(10): # Send 10 stop messages over 1 second
+        for i in range(10): # Send 10 times over 1 second
             pub.publish(twist)
             time.sleep(0.1)
 
         # Restore terminal settings
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
-        print("Script exited cleanly.")
+        print("Done.")
