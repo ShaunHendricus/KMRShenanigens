@@ -31,10 +31,10 @@ moveBindings = {
 }
 
 # Speed settings
-SPEED_LINEAR = 0.2  # m/s
+SPEED_LINEAR = 0.1  # m/s
 SPEED_ANGULAR = 0.3 # rad/s
 
-"""
+
 def getKey():
     # This function captures key presses without needing 'Enter'
     tty.setraw(sys.stdin.fileno())
@@ -43,32 +43,12 @@ def getKey():
     termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
     return key
 
-"""
 
-readyflag = 0
 
-#readyflag = int(input("Type 1 and enter to start the script: "))
 
-while readyflag == 0:
+counter = 0
+print("Im here")
 
-    x = 0
-    y = 0
-    th = 0
-    status = 0
-
-    twist = Twist()
-    twist.linear.x = x * SPEED_LINEAR
-    twist.linear.y = y * SPEED_LINEAR
-    twist.linear.z = 0
-    twist.angular.x = 0
-    twist.angular.y = 0
-    twist.angular.z = th * SPEED_ANGULAR
-
-    pub.publish(twist)
-
-    print("helo")
-
-    time.sleep(1)
 
 
 if __name__=="__main__":
@@ -81,6 +61,30 @@ if __name__=="__main__":
     y = 0
     th = 0
     status = 0
+
+    while counter <= 30:
+        #Buying me 20 seconds to get back to desk. Constantly sends zero commands to robot, so it wont kick me out safety.
+
+        x = 0
+        y = 0
+        th = 0
+        status = 0
+
+        twist = Twist()
+        twist.linear.x = 0
+        twist.linear.y = 0
+        twist.linear.z = 0
+        twist.angular.x = 0
+        twist.angular.y = 0
+        twist.angular.z = 0
+
+        pub.publish(twist)
+
+        print("helo")
+
+        counter = counter + 1
+        
+        time.sleep(1)
 
     try:
         print(msg)
